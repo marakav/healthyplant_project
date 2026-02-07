@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Уход за комнатными растениями</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Навигация -->
+        <div class="nav">
+            <a href="/" class="logo">HealthyPlant</a>
+            <div class="nav-buttons">
+                {% if session.user_id %}
+                    <span class="nav-username">Привет, {{ session.username }}!</span>
+                    <a href="{{ url_for('my_account') }}" class="button button-outline">Мой аккаунт</a>
+                    <button class="button button-outline" onclick="logout()">Выйти</button>
+                {% else %}
+                    <button class="button button-outline" onclick="openModal('loginModal')">Войти</button>
+                    <button class="button" onclick="openModal('registerModal')">Регистрация</button>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if request.endpoint == 'my_account' %}
+            <!-- Страница аккаунта -->
+            <div class="section">
+                <h1>Личный кабинет</h1>
+                <div class="account-section">
+                    <div class="account-sidebar">
+                        <h3>Меню</h3>
+                        <ul class="sidebar-menu">
+                            <li><a href="#analyze-plant" onclick="showSection('analyze-plant')">🔍 Анализ растения</a></li>
+                            <li><a href="#profile" onclick="showSection('profile')">📊 Профиль</a></li>
+                            <li><a href="#my-flowers" onclick="showSection('my-flowers')">🌺 Мои цветы</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="account-content">
+                        <!-- Анализ растения через Telegram бота -->
+                        <div id="analyze-plant-section" class="account-section-content">
+                            <h2>Анализ растения через Telegram бота</h2>
+
+                            <div class="section" style="margin-top: 20px;">
+                                <h3>Как это работает:</h3>
+                                <ol style="margin-left: 20px; margin-top: 10px;">
+                                    <li>Нажмите на кнопку "Получить токен"</li>
+                                    <li>Скопируйте токен и отправьте его Telegram боту @HealthyPlants_Bot</li>
+                                    <li>Отправьте фото растения боту</li>
+                                    <li>Бот проанализирует растение и сохранит результат</li>
+                                    <li>Введите токен ниже, чтобы получить результат</li>
+                                </ol>
+                            </div>
+
+                            <div class="section" style="margin-top: 20px;">
+                                <h3>1. Получить токен</h3>
+                                <p>Нажмите кнопку, чтобы сгенерировать уникальный токен:</p>
+                                <button class="button" onclick="generateToken()">Получить токен</button>
+
+                                <div id="tokenResult" style="margin-top: 15px; display: none;">
+                                    <div class="care-details">
+                                        <h4>Ваш токен:</h4>
+                                        <p id="generatedToken" style="font-family: monospace; font-size: 16px; background: #f5f5f5; padding: 10px; border-radius: 5px; word-break: break-all;"></p>
+                                        <p><strong>Скопируйте этот токен и отправьте его в Telegram боту!</strong></p>
+                                        <button class="button" onclick="copyTokenToClipboard()" style="margin-top: 10px;">📋 Копировать токен</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section" style="margin-top: 20px;">
+                                <h3>2. Ввести токен для получения результата</h3>
+                                <p>После того как бот проанализирует растение, введите токен здесь:</p>
+
+                                <form id="tokenForm" onsubmit="submitTokenForm(event)">
+                                     <div class="form-group">
+                                        <label class="form-label">Токен от бота:</label>
+                                         <input type="text" id="tokenInput" name="token" class="form-input" required placeholder="Введите токен, полученный от бота">
+                                    </div>
+                                    <button type="submit" class="button modal-submit-btn">Получить анализ</button>
+                                </form>
+
+                                <div id="tokenStatus" style="margin-top: 15px; display: none;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Профиль -->
+                        <div id="profile-section" class="account-section-content" style="display: none;">
+                            <h2>📊 Статистика профиля</h2>
+                            <div class="user-info">
+                                <h3>{{ session.username }}</h3>
+                                <p>Email: {{ session.email }}</p>
+                                <div class="user-stats">
+                                    <div class="stat-item">
+                                        <div class="stat-number">{{ user_data.analysis_count if user_data else 0 }}</div>
+                                        <div>Анализов</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-number">{{ user_data.flowers|length if user_data and user_data.flowers else 0 }}</div>
+                                        <div>Цветков</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-number">{{ user_data.created_at[:10] if user_data and user_data.created_at else '' }}</div>
+                                        <div>Дата регистрации</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Мои цветы -->
+                        <div id="my-flowers-section" class="account-section-content" style="display: none;">
+                            <h2>🌺 Мои цветы</h2>
+                            {% if user_flowers %}
+                            <div class="my-flowers-grid">
+                                {% for flower in user_flowers %}
+                                <div class="flower-card">
+                                    {% if flower.image_url %}
+                                    <img src="{{ flower.image_url }}" alt="{{ flower.name }}">
+                                    {% else %}
+                                    <div style="height: 180px; background: linear-gradient(135deg, var(--green-medium) 0%, var(--green-light) 100%); display: flex; align-items: center; justify-content: center; border-radius: 10px; margin-bottom: 1em;">
+                                        <span style="color: white; font-size: 2em;">🌿</span>
+                                    </div>
+                                    {% endif %}
+                                    <h3>{{ flower.name }}</h3>
+                                    <p><strong>Тип:</strong> {{ flower.type }}</p>
+                                    <p><strong>Дата анализа:</strong> {{ flower.analysis_date[:10] if flower.analysis_date else flower.added_date[:10] }}</p>
+                                    <div class="care-details">
+                                        <h4>Уход:</h4>
+                                        <p><strong>Полив:</strong> {{ flower.watering }}</p>
+                                        <p><strong>Освещение:</strong> {{ flower.light }}</p>
+                                        <p><strong>Температура:</strong> {{ flower.temperature }}</p>
+                                    </div>
+                                    {% if flower.problems and flower.problems|length > 0 %}
+                                    <div class="problem-list">
+                                        <h4>Проблемы:</h4>
+                                        <ul>
+                                            {% for problem in flower.problems %}
+                                            <li>{{ problem }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div style="text-align: center; padding: 40px 20px;">
+                                <p style="font-size: 18px; margin-bottom: 20px;">У вас пока нет проанализированных цветков.</p>
+                                <p style="margin-bottom: 30px;">Сначала получите токен и отправьте фото растения боту.</p>
+                                <a href="#analyze-plant" onclick="showSection('analyze-plant')" class="button">🔍 Проанализировать первый цветок</a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <!-- Главная страница -->
+            <div class="hero section">
+                <h1>Уход за комнатными растениями</h1>
+                {% if session.user_id %}
+                <div class="user-info">
+                    <h3>Добро пожаловать, {{ session.username }}!</h3>
+                    <div class="user-stats">
+                        <div class="stat-item">
+                            <div class="stat-number">{{ user_data.analysis_count if user_data else 0 }}</div>
+                            <div>Анализов</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ user_data.flowers|length if user_data and user_data.flowers else 0 }}</div>
+                            <div>Цветков</div>
+                        </div>
+                    </div>
+                </div>
+                <a href="{{ url_for('my_account') }}" class="button">🔍 Анализировать растение</a>
+                {% else %}
+                <p class="hero-description">Проанализируйте ваши растения с помощью нашего Telegram бота</p>
+                <button class="button" onclick="openModal('registerModal')">Начать анализ</button>
+                {% endif %}
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% if not session.user_id %}
+            <div class="section auth-required-section">
+                <h2>Требуется авторизация</h2>
+                <p>Для анализа цветков необходимо войти в систему или зарегистрироваться.</p>
+                <div class="auth-buttons">
+                    <button class="button" onclick="openModal('registerModal')">Зарегистрироваться</button>
+                    <button class="button button-outline" onclick="openModal('loginModal')">Войти</button>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="section">
+                <h2>Как работает анализ растений</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">1</div>
+                        <h3>Получите токен</h3>
+                        <p>Зарегистрируйтесь и получите уникальный токен в личном кабинете</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">2</div>
+                        <h3>Отправьте боту</h3>
+                        <p>Отправьте токен и фото растения в Telegram бота @HealthyPlants_Bot</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">3</div>
+                        <h3>Получите анализ</h3>
+                        <p>Бот проанализирует растение и сохранит результат</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">4</div>
+                        <h3>Смотрите результат</h3>
+                        <p>Введите токен на сайте для получения детального анализа</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Советы по уходу за растениями</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">💧</div>
+                        <h3>Полив</h3>
+                        <p>Регулярно проверяйте влажность почвы. Не допускайте пересыхания или переувлажнения.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">☀️</div>
+                        <h3>Освещение</h3>
+                        <p>Обеспечьте растениям достаточно света согласно их потребностям.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🌡️</div>
+                        <h3>Температура</h3>
+                        <p>Следите за температурным режимом, избегайте резких перепадов.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🍃</div>
+                        <h3>Гигиена</h3>
+                        <p>Регулярно удаляйте пыль с листьев и проверяйте на наличие вредителей.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="contact">
+                <h2>Связаться с нами!</h2>
+                <p>📧 Email: healthyplant7@gmail.com</p>
+                <p>🤖 Telegram бот: @HealthyPlants_Bot</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Модальное окно регистрации -->
+    <div id="registerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('registerModal')">&times;</span>
+            <h2>Регистрация</h2>
+            <form method="POST" action="{{ url_for('register') }}">
+                <div class="form-group">
+                    <label class="form-label">Имя пользователя</label>
+                    <input type="text" name="username" class="form-input" required placeholder="Введите ваше имя">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" required placeholder="Введите ваш email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Пароль</label>
+                    <input type="password" name="password" class="form-input" required placeholder="Создайте пароль">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Подтверждение пароля</label>
+                    <input type="password" name="confirm_password" class="form-input" required placeholder="Повторите пароль">
+                </div>
+
+                <!-- Соглашение на обработку данных -->
+                <div class="form-group" style="margin-top: 1.5em;">
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <input type="checkbox" id="privacyPolicy" name="privacy_policy" required style="margin-top: 3px;">
+                        <label for="privacyPolicy" style="font-size: 0.85em; line-height: 1.4;">
+                            Я соглашаюсь на обработку моих персональных данных в соответствии с
+                            <a href="#" style="color: var(--green-medium); text-decoration: underline;" onclick="openPrivacyPolicy()">
+                                Политикой конфиденциальности
+                            </a>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="button modal-submit-btn">Зарегистрироваться</button>
+            </form>
+            <p class="modal-footer">
+                Уже есть аккаунт? <a href="#" onclick="closeModal('registerModal'); openModal('loginModal');">Войдите</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Модальное окно входа -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('loginModal')">&times;</span>
+            <h2>Вход в систему</h2>
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" required placeholder="Введите ваш email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Пароль</label>
+                    <input type="password" name="password" class="form-input" required placeholder="Введите ваш пароль">
+                </div>
+                <button type="submit" class="button modal-submit-btn">Войти</button>
+            </form>
+            <p class="modal-footer">
+                Нет аккаунта? <a href="#" onclick="closeModal('loginModal'); openModal('registerModal');">Зарегистрируйтесь</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Модальное окно с политикой конфиденциальности -->
+    <div id="privacyPolicyModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+            <span class="close" onclick="closeModal('privacyPolicyModal')">&times;</span>
+            <h2>Политика конфиденциальности</h2>
+
+            <div style="margin-top: 20px; font-size: 0.9em; line-height: 1.6;">
+                <h3>1. Общие положения</h3>
+                <p>Настоящая Политика конфиденциальности регулирует порядок обработки и защиты персональных данных пользователей сайта HealthyPlant.</p>
+
+                <h3>2. Какие данные мы собираем</h3>
+                <ul style="margin-left: 20px; margin-bottom: 15px;">
+                    <li>Имя пользователя</li>
+                    <li>Адрес электронной почты</li>
+                    <li>Информацию о растениях и их анализах</li>
+                    <li>Изображения растений, отправленные через Telegram бота</li>
+                </ul>
+
+                <h3>3. Цели обработки данных</h3>
+                <ul style="margin-left: 20px; margin-bottom: 15px;">
+                    <li>Предоставление услуг анализа растений</li>
+                    <li>Сохранение истории анализов в личном кабинете</li>
+                    <li>Улучшение качества сервиса</li>
+                    <li>Обратная связь с пользователями</li>
+                </ul>
+
+                <h3>4. Хранение и защита данных</h3>
+                <p>Все персональные данные хранятся в зашифрованном виде. Мы принимаем необходимые меры для защиты данных от несанкционированного доступа.</p>
+
+                <h3>5. Права пользователей</h3>
+                <p>Вы имеете право запросить удаление ваших персональных данных, обратившись по email: healthyplant7@gmail.com</p>
+
+                <p style="margin-top: 20px; font-style: italic;">Дата вступления в силу: 01.01.2024</p>
+            </div>
+
+            <div style="margin-top: 20px; text-align: center;">
+                <button class="button" onclick="closeModal('privacyPolicyModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
